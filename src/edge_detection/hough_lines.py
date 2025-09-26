@@ -1,5 +1,5 @@
 """
-Hough Transform for Line Detection - Custom implementation
+Hough Transform for Line Detection - Adjustable implementation with trackbars
 """
 import cv2
 import numpy as np
@@ -7,112 +7,49 @@ from ..filters.base_filter import BaseFilter
 
 
 class HoughLineDetector(BaseFilter):
-    """Custom Hough Transform line detection implementation."""
+    """Hough Transform line detection with adjustable parameters."""
     
     def __init__(self):
-        """Initialize Hough line detector with default parameters."""
+        """Initialize Hough line detector with adjustable parameters."""
         super().__init__("Hough Line Detection")
+        # Default parameters - can be adjusted with trackbars
         self.parameters = {
-            'rho_resolution': 1,
-            'theta_resolution': 1,
-            'threshold': 100,
-            'min_line_length': 50,
-            'max_line_gap': 10
+            'threshold': 100,       # Minimum votes for line detection
+            'canny_low': 50,        # Canny lower threshold
+            'canny_high': 150,      # Canny upper threshold
+            'max_lines': 20         # Maximum number of lines to show
         }
+        self.rho = 1                # Distance resolution in pixels  
+        self.theta = np.pi/180      # Angle resolution in radians
     
-    def hough_transform(self, edges, rho_res=1, theta_res=1):
+    def detect_lines_adjustable(self, edges, threshold, max_lines):
         """
-        Perform Hough transform to detect lines.
+        Adjustable line detection using OpenCV's HoughLines.
         
         Args:
             edges (numpy.ndarray): Edge detected image
-            rho_res (int): Rho resolution in pixels
-            theta_res (int): Theta resolution in degrees
+            threshold (int): Minimum votes for line detection
+            max_lines (int): Maximum number of lines to return
             
         Returns:
-            tuple: (accumulator, rho_values, theta_values)
+            numpy.ndarray: Lines in format [[rho, theta], ...]
         """
-        height, width = edges.shape
+        # Use standard Hough transform
+        lines = cv2.HoughLines(edges, self.rho, self.theta, threshold=threshold)
         
-        # Maximum possible rho value
-        max_rho = int(np.sqrt(height**2 + width**2))
-        
-        # Create parameter space
-        rho_values = np.arange(-max_rho, max_rho + 1, rho_res)
-        theta_values = np.deg2rad(np.arange(0, 180, theta_res))
-        
-        # Initialize accumulator
-        accumulator = np.zeros((len(rho_values), len(theta_values)), dtype=np.int32)
-        
-        # Find edge pixels
-        edge_pixels = np.where(edges > 0)
-        
-        # Vote in Hough space
-        for i in range(len(edge_pixels[0])):
-            y = edge_pixels[0][i]
-            x = edge_pixels[1][i]
-            
-            for theta_idx, theta in enumerate(theta_values):
-                rho = int(x * np.cos(theta) + y * np.sin(theta))
-                rho_idx = np.argmin(np.abs(rho_values - rho))
-                accumulator[rho_idx, theta_idx] += 1
-        
-        return accumulator, rho_values, theta_values
+        if lines is not None:
+            # Limit number of lines for performance
+            return lines[:max_lines]
+        else:
+            return np.array([])
     
-    def find_peaks(self, accumulator, threshold, min_distance=10):
+    def draw_lines_adjustable(self, image, lines):
         """
-        Find peaks in the accumulator array.
-        
-        Args:
-            accumulator (numpy.ndarray): Hough accumulator
-            threshold (int): Minimum votes for a line
-            min_distance (int): Minimum distance between peaks
-            
-        Returns:
-            list: List of (rho_idx, theta_idx, votes) tuples
-        """
-        peaks = []
-        
-        # Find all points above threshold
-        candidates = np.where(accumulator >= threshold)
-        
-        for i in range(len(candidates[0])):
-            rho_idx = candidates[0][i]
-            theta_idx = candidates[1][i]
-            votes = accumulator[rho_idx, theta_idx]
-            
-            # Check if this is a local maximum
-            is_peak = True
-            for dr in range(-min_distance, min_distance + 1):
-                for dt in range(-min_distance, min_distance + 1):
-                    r_check = rho_idx + dr
-                    t_check = theta_idx + dt
-                    
-                    if (0 <= r_check < accumulator.shape[0] and 
-                        0 <= t_check < accumulator.shape[1]):
-                        if accumulator[r_check, t_check] > votes:
-                            is_peak = False
-                            break
-                if not is_peak:
-                    break
-            
-            if is_peak:
-                peaks.append((rho_idx, theta_idx, votes))
-        
-        # Sort by votes (descending)
-        peaks.sort(key=lambda x: x[2], reverse=True)
-        
-        return peaks
-    
-    def draw_lines(self, image, lines, rho_values, theta_values):
-        """
-        Draw detected lines on the image.
+        Draw detected lines on the image with adjustable visualization.
         
         Args:
             image (numpy.ndarray): Input image
-            lines (list): List of detected lines
-            rho_values (numpy.ndarray): Rho parameter values
-            theta_values (numpy.ndarray): Theta parameter values
+            lines (numpy.ndarray): Array of lines [[rho, theta], ...]
             
         Returns:
             numpy.ndarray: Image with lines drawn
@@ -121,122 +58,119 @@ class HoughLineDetector(BaseFilter):
         if len(result.shape) == 2:
             result = cv2.cvtColor(result, cv2.COLOR_GRAY2BGR)
         
-        height, width = image.shape[:2]
-        
-        for rho_idx, theta_idx, votes in lines:
-            rho = rho_values[rho_idx]
-            theta = theta_values[theta_idx]
+        if lines is not None and len(lines) > 0:
+            for rho, theta in lines[:, 0]:
+                # Convert polar coords (rho, theta) to Cartesian direction
+                a = np.cos(theta)  # x-component of the unit direction vector
+                b = np.sin(theta)  # y-component of the unit direction vector
+                
+                # (x0, y0) is the point on the line closest to the origin (0,0)
+                x0 = a * rho
+                y0 = b * rho
+                
+                # Extend the line far in both directions for drawing:
+                # First endpoint (go in the negative perpendicular direction)
+                x1 = int(x0 + 1000 * (-b))
+                y1 = int(y0 + 1000 * (a))
+                
+                # Second endpoint (go in the positive perpendicular direction)
+                x2 = int(x0 - 1000 * (-b))
+                y2 = int(y0 - 1000 * (a))
+                
+                # Draw the line on the image in red (BGR: (0, 0, 255)) with thickness=2
+                cv2.line(result, (x1, y1), (x2, y2), (0, 0, 255), 2)
             
-            # Convert from polar to Cartesian coordinates
-            a = np.cos(theta)
-            b = np.sin(theta)
-            x0 = a * rho
-            y0 = b * rho
-            
-            # Calculate line endpoints
-            x1 = int(x0 + 1000 * (-b))
-            y1 = int(y0 + 1000 * (a))
-            x2 = int(x0 - 1000 * (-b))
-            y2 = int(y0 - 1000 * (a))
-            
-            # Draw the line
-            cv2.line(result, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            
-            # Add vote count text
-            mid_x = width // 2
-            mid_y = 30 + len([l for l in lines if lines.index((rho_idx, theta_idx, votes)) >= lines.index(l)]) * 20
-            cv2.putText(result, f'Votes: {votes}', (mid_x, mid_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+            # Add line count info
+            cv2.putText(result, f'Lines: {len(lines)}', (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         
         return result
     
     def apply(self, image, **kwargs):
         """
-        Apply Hough line detection.
+        Apply adjustable Hough line detection with trackbar parameters.
+        Works directly on original image - applies Canny internally.
         
         Args:
-            image (numpy.ndarray): Input image (should be edge detected)
-            **kwargs: Parameters
+            image (numpy.ndarray): Input image (original BGR or grayscale)
+            **kwargs: Parameters from trackbars
             
         Returns:
-            numpy.ndarray: Image with detected lines
+            numpy.ndarray: Original image with detected lines overlaid
         """
-        # Get parameters
-        rho_res = kwargs.get('rho_resolution', self.parameters['rho_resolution'])
-        theta_res = kwargs.get('theta_resolution', self.parameters['theta_resolution'])
+        # Get parameters from trackbars or use defaults
         threshold = kwargs.get('threshold', self.parameters['threshold'])
+        canny_low = kwargs.get('canny_low', self.parameters['canny_low'])
+        canny_high = kwargs.get('canny_high', self.parameters['canny_high'])
+        max_lines = kwargs.get('max_lines', self.parameters['max_lines'])
         
-        # Ensure we have an edge image
+        # Convert to grayscale if needed
         if len(image.shape) == 3:
-            edges = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
-            edges = image.copy()
+            gray = image.copy()
         
-        # Apply Hough transform
-        accumulator, rho_values, theta_values = self.hough_transform(edges, rho_res, theta_res)
+        # Apply Canny edge detection with adjustable thresholds
+        edges = cv2.Canny(gray, canny_low, canny_high, apertureSize=3, L2gradient=True)
         
-        # Find line candidates
-        lines = self.find_peaks(accumulator, threshold)
-        
-        # Limit number of lines displayed
-        max_lines = 10
-        lines = lines[:max_lines]
+        # Apply Hough line detection with adjustable parameters
+        lines = self.detect_lines_adjustable(edges, threshold, max_lines)
         
         # Draw lines on original image
-        result = self.draw_lines(image, lines, rho_values, theta_values)
+        result = self.draw_lines_adjustable(image, lines)
         
         return result
     
     def get_parameter_info(self):
-        """Get parameter information for Hough line detection."""
+        """Get parameter information for adjustable Hough line detection."""
         return {
-            'rho_resolution': {
-                'type': int,
-                'range': (1, 5),
-                'default': 1,
-                'description': 'Rho resolution in pixels',
-                'step': 1
-            },
-            'theta_resolution': {
-                'type': int,
-                'range': (1, 5),
-                'default': 1,
-                'description': 'Theta resolution in degrees',
-                'step': 1
-            },
             'threshold': {
                 'type': int,
-                'range': (10, 300),
+                'range': (50, 500),
                 'default': 100,
-                'description': 'Minimum votes for line detection',
-                'step': 1
+                'description': 'Minimum votes for line detection'
+            },
+            'canny_low': {
+                'type': int,
+                'range': (10, 200),
+                'default': 50,
+                'description': 'Canny lower threshold'
+            },
+            'canny_high': {
+                'type': int,
+                'range': (50, 300),
+                'default': 150,
+                'description': 'Canny upper threshold'
+            },
+            'max_lines': {
+                'type': int,
+                'range': (5, 50),
+                'default': 20,
+                'description': 'Maximum lines to display'
             }
         }
     
     def create_trackbars(self, window_name):
-        """Create trackbars for Hough line detection."""
-        param_info = self.get_parameter_info()
-        
-        cv2.createTrackbar('Hough Rho Resolution', window_name, 
-                          param_info['rho_resolution']['default'], 
-                          param_info['rho_resolution']['range'][1], lambda x: None)
-        
-        cv2.createTrackbar('Hough Theta Resolution', window_name, 
-                          param_info['theta_resolution']['default'], 
-                          param_info['theta_resolution']['range'][1], lambda x: None)
-        
-        cv2.createTrackbar('Hough Threshold', window_name, 
-                          param_info['threshold']['default'], 
-                          param_info['threshold']['range'][1], lambda x: None)
+        """Create trackbars for adjustable Hough line detection."""
+        cv2.createTrackbar('Hough Threshold', window_name, 100, 500, lambda x: None)
+        cv2.createTrackbar('Canny Low', window_name, 50, 200, lambda x: None)
+        cv2.createTrackbar('Canny High', window_name, 150, 300, lambda x: None)
+        cv2.createTrackbar('Max Lines', window_name, 20, 50, lambda x: None)
     
     def get_trackbar_values(self, window_name):
         """Get current trackbar values."""
-        rho_res = max(1, cv2.getTrackbarPos('Hough Rho Resolution', window_name))
-        theta_res = max(1, cv2.getTrackbarPos('Hough Theta Resolution', window_name))
-        threshold = max(10, cv2.getTrackbarPos('Hough Threshold', window_name))
+        threshold = max(50, cv2.getTrackbarPos('Hough Threshold', window_name))
+        canny_low = max(10, cv2.getTrackbarPos('Canny Low', window_name))
+        canny_high = max(50, cv2.getTrackbarPos('Canny High', window_name))
+        max_lines = max(5, cv2.getTrackbarPos('Max Lines', window_name))
+        
+        # Ensure canny_high > canny_low
+        if canny_high <= canny_low:
+            canny_high = canny_low + 10
         
         return {
-            'rho_resolution': rho_res,
-            'theta_resolution': theta_res,
-            'threshold': threshold
+            'threshold': threshold,
+            'canny_low': canny_low,
+            'canny_high': canny_high,
+            'max_lines': max_lines
         }

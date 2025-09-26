@@ -18,28 +18,7 @@ class GeometricTransformer:
             'scale_y': 1.0
         }
     
-    def translate_image(self, image, tx, ty):
-        """
-        Translate image by (tx, ty) pixels.
-        
-        Args:
-            image (numpy.ndarray): Input image
-            tx (float): Translation in x direction
-            ty (float): Translation in y direction
-            
-        Returns:
-            numpy.ndarray: Translated image
-        """
-        height, width = image.shape[:2]
-        
-        # Create translation matrix
-        translation_matrix = np.array([[1, 0, tx],
-                                     [0, 1, ty]], dtype=np.float32)
-        
-        # Apply translation
-        translated = cv2.warpAffine(image, translation_matrix, (width, height))
-        
-        return translated
+    
     
     def rotate_image(self, image, angle, center=None):
         """
@@ -196,32 +175,4 @@ class GeometricTransformer:
         
         return self.combined_transform(image, tx, ty, angle, scale_x, scale_y)
     
-    def get_parameter_info(self):
-        """Get parameter information for transformations."""
-        return {
-            'translate_x': {
-                'range': (-100, 100),
-                'default': 0,
-                'description': 'Translation in X direction (pixels)'
-            },
-            'translate_y': {
-                'range': (-100, 100),
-                'default': 0,
-                'description': 'Translation in Y direction (pixels)'
-            },
-            'rotation_angle': {
-                'range': (0, 360),
-                'default': 0,
-                'description': 'Rotation angle (degrees)'
-            },
-            'scale_x': {
-                'range': (0.1, 3.0),
-                'default': 1.0,
-                'description': 'Scale factor in X direction'
-            },
-            'scale_y': {
-                'range': (0.1, 3.0),
-                'default': 1.0,
-                'description': 'Scale factor in Y direction'
-            }
-        }
+

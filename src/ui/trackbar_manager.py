@@ -37,32 +37,7 @@ class TrackbarManager:
             'callback': callback
         }
     
-    def remove_trackbar(self, name):
-        """
-        Remove a trackbar (by recreating window without it).
-        
-        Args:
-            name (str): Trackbar name to remove
-        """
-        if name in self.trackbars:
-            # Store current values of remaining trackbars
-            remaining_values = {}
-            for trackbar_name in self.trackbars:
-                if trackbar_name != name:
-                    remaining_values[trackbar_name] = self.get_value(trackbar_name)
-            
-            # Remove from our tracking
-            del self.trackbars[name]
-            
-            # Destroy and recreate window to remove the trackbar
-            cv2.destroyWindow(self.window_name)
-            cv2.namedWindow(self.window_name)
-            
-            # Recreate remaining trackbars
-            for trackbar_name, info in self.trackbars.items():
-                cv2.createTrackbar(trackbar_name, self.window_name, 
-                                 remaining_values.get(trackbar_name, info['default']), 
-                                 info['max'], info['callback'])
+
     
     def get_value(self, name):
         """
@@ -76,18 +51,7 @@ class TrackbarManager:
         """
         return cv2.getTrackbarPos(name, self.window_name)
     
-    def set_value(self, name, value):
-        """
-        Set trackbar value.
-        
-        Args:
-            name (str): Trackbar name
-            value (int): Value to set
-        """
-        if name in self.trackbars:
-            max_val = self.trackbars[name]['max']
-            value = max(0, min(value, max_val))
-            cv2.setTrackbarPos(name, self.window_name, value)
+    
     
     def get_all_values(self):
         """
@@ -104,7 +68,7 @@ class TrackbarManager:
     def reset_to_defaults(self):
         """Reset all trackbars to their default values."""
         for name, info in self.trackbars.items():
-            self.set_value(name, info['default'])
+            cv2.setTrackbarPos(name, self.window_name, info['default'])
     
     def create_brightness_contrast_trackbars(self):
         """Create standard brightness and contrast trackbars."""
@@ -121,17 +85,3 @@ class TrackbarManager:
         brightness = self.get_value('Brightness') - 100  # Convert to -100 to +100
         contrast = self.get_value('Contrast') / 100.0     # Convert to 0.01 to 2.0
         return brightness, contrast
-    
-    def create_color_space_trackbar(self):
-        """Create trackbar for color space selection."""
-        # 0: BGR, 1: GRAY, 2: HSV
-        self.create_trackbar('Color Space', 0, 2)
-    
-    def get_color_space_value(self):
-        """
-        Get selected color space.
-        
-        Returns:
-            int: Color space index (0: BGR, 1: GRAY, 2: HSV)
-        """
-        return self.get_value('Color Space')

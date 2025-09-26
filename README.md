@@ -1,144 +1,112 @@
-# Image Processing Application
+# Computer Vision Application
 
-A real-time image processing application with webcam integration, built using OpenCV and organized with Object-Oriented Programming principles.
+Real-time computer vision application with webcam integration, featuring image processing, panorama creation, augmented reality, and camera calibration.
 
-## Features
+## Setup
 
-- **Real-time Webcam Processing**: Live webcam feed with real-time image processing
-- **Color Space Conversion**: Switch between BGR, Grayscale, and HSV color spaces
-- **Brightness & Contrast Adjustment**: Real-time brightness and contrast control
-- **Image Filtering**: 
-  - Gaussian Blur with adjustable parameters
-  - Bilateral Filter with adjustable parameters
-- **Histogram Analysis**: Live histogram display and analysis
-- **Modular Design**: Easy to extend with new filters and processing functions
+### 1. Install Miniforge and Create Conda Environment
 
-## Project Structure
+This application uses Miniforge and Conda environments for dependency management.
 
-```
-task1/
-├── main.py                          # Main application entry point
-├── requirements.txt                 # Python dependencies
-├── README.md                       # This file
-├── test.py                         # Original test file (legacy)
-└── src/                           # Source code modules
-    ├── core/                      # Core functionality
-    │   ├── webcam_manager.py      # Webcam operations
-    │   └── image_processor.py     # Main image processing logic
-    ├── filters/                   # Image filters
-    │   ├── base_filter.py         # Abstract base class for filters
-    │   ├── gaussian_filter.py     # Gaussian blur implementation
-    │   └── bilateral_filter.py    # Bilateral filter implementation
-    ├── color_spaces/              # Color space operations
-    │   └── histogram_analyzer.py  # Histogram analysis and visualization
-    └── ui/                        # User interface components
-        ├── trackbar_manager.py    # Trackbar management
-        └── display_manager.py     # Window and display management
-```
-
-## Installation
-
-1. Install required packages:
+**Step 1: Install Miniforge**
 ```bash
-pip install -r requirements.txt
+# macOS with Homebrew:
+brew install --cask miniforge
+
+# Or download from: https://github.com/conda-forge/miniforge
 ```
 
-## Usage
+**Step 2: Create and Activate Environment**
+```bash
+conda create -n cv_app python=3.9
+conda activate cv_app
+```
 
-Run the main application:
+**Step 3: Install Required Packages**
+```bash
+conda install -c conda-forge opencv numpy matplotlib
+```
+
+**Step 4: Run the Application**
 ```bash
 python main.py
 ```
 
-### Controls
+### Requirements
+- Python 3.9+
+- OpenCV
+- NumPy 
+- Matplotlib
+- Webcam (USB or built-in)
 
-- **Trackbars**: Use the trackbars in the main window to adjust parameters in real-time
-- **Keyboard Shortcuts**:
-  - `1`: Switch to BGR color space
-  - `2`: Switch to Grayscale
-  - `3`: Switch to HSV color space
-  - `h`: Toggle histogram display
-  - `g`: Toggle Gaussian filter
-  - `b`: Toggle Bilateral filter
-  - `r`: Reset all parameters to defaults
-  - `s`: Save current frame
-  - `q`: Quit application
+## User Manual
 
-### Trackbar Controls
+### Keyboard Controls
 
-- **Brightness**: Adjust image brightness (-100 to +100)
-- **Contrast**: Adjust image contrast (0.01 to 2.0)
-- **Color Space**: Select color space (0=BGR, 1=Grayscale, 2=HSV)
-- **Gaussian Kernel**: Kernel size for Gaussian blur
-- **Gaussian Sigma X/Y**: Standard deviation for Gaussian blur
-- **Bilateral d**: Diameter for bilateral filter
-- **Bilateral Sigma Color**: Color space sigma for bilateral filter
-- **Bilateral Sigma Space**: Coordinate space sigma for bilateral filter
-- **Enable Gaussian**: Toggle Gaussian filter on/off
-- **Enable Bilateral**: Toggle Bilateral filter on/off
-- **Show Histogram**: Toggle histogram display on/off
+#### Basic Controls
+- `q` - Quit application
+- `r` - Reset all settings to default
+- `s` - Save current frame as image
 
-## Architecture
+#### Color Spaces
+- `1` - BGR color mode (default)
+- `2` - Grayscale mode
+- `3` - HSV color mode
 
-### Core Components
+#### Image Processing Filters
+- `h` - Toggle histogram display
+- `g` - Toggle Gaussian blur filter
+- `b` - Toggle bilateral filter
+- `e` - Toggle Canny edge detection
+- `l` - Toggle Hough line detection
+- `t` - Toggle geometric transformations
 
-1. **WebcamManager**: Handles webcam initialization, frame capture, and resource management
-2. **ImageProcessor**: Main processing engine with brightness/contrast adjustment and color space conversion
-3. **HistogramAnalyzer**: Calculates and visualizes image histograms
+#### Camera Calibration
+- `c` - Enter/exit calibration mode
+- `SPACE` - Capture calibration image (in calibration mode)
 
-### Filter System
+#### Panorama Creation
+- `p` - Enter/exit panorama mode
+- `SPACE` - Capture frame for panorama (in panorama mode)
+- `m` - Create panorama from captured frames
+- `ESC` - Exit panorama mode
 
-- **BaseFilter**: Abstract base class providing a common interface for all filters
-- **GaussianFilter**: Implements Gaussian blur with configurable parameters
-- **BilateralFilter**: Implements edge-preserving bilateral filtering
+#### Augmented Reality
+- `a` - Enter/exit AR mode
+- `v` - Change render mode (wireframe/solid/both)
+- `n` - Toggle T-Rex animation
+- `x` - Toggle coordinate axis display
 
-### UI System
+### How to Use
 
-- **TrackbarManager**: Manages OpenCV trackbars for real-time parameter adjustment
-- **DisplayManager**: Handles window creation, image display, and text overlays
+#### 1. Basic Image Processing
+1. Run `python main.py`
+2. Use number keys `1`, `2`, `3` to change color spaces
+3. Adjust brightness/contrast with trackbars
+4. Press filter keys `g`, `b`, `e`, `l`, `t` to enable filters
 
-## Extending the Application
+#### 2. Panorama Creation
+1. Press `p` to enter panorama mode
+2. Press `SPACE` to capture first frame
+3. Move camera horizontally with 30% overlap
+4. Press `SPACE` to capture more frames
+5. Press `m` to create final panorama
+6. Panoramas save to `panorama/` folder
 
-### Adding New Filters
+#### 3. Camera Calibration  
+1. Press `c` to enter calibration mode
+2. Point camera at chessboard pattern
+3. Application auto-captures when pattern detected
+4. Move to different angles for variety
+5. Calibration completes automatically
 
-1. Create a new filter class inheriting from `BaseFilter`:
-```python
-from src.filters.base_filter import BaseFilter
+#### 4. Augmented Reality
+1. Press `a` to enter AR mode
+2. Point camera at ArUco marker
+3. T-Rex model appears on marker
+4. Use `v`, `n`, `x` to control display options
 
-class MyNewFilter(BaseFilter):
-    def __init__(self):
-        super().__init__("My New Filter")
-        self.parameters = {'param1': default_value}
-    
-    def apply(self, image, **kwargs):
-        # Implement your filter logic
-        return processed_image
-    
-    def get_parameter_info(self):
-        # Return parameter information
-        return parameter_info_dict
-```
-
-2. Add the filter to the main application in `main.py`
-3. Create trackbars for the new filter parameters
-
-### Adding New Color Spaces
-
-Add new color space conversions in `ImageProcessor.convert_color_space()` method.
-
-### Adding New Analysis Tools
-
-Create new analysis classes similar to `HistogramAnalyzer` in the `color_spaces` directory.
-
-## Dependencies
-
-- **OpenCV (cv2)**: Computer vision and image processing
-- **NumPy**: Numerical computations
-- **Matplotlib**: Plotting and visualization (for advanced histogram features)
-
-## Notes
-
-- The application automatically detects and handles different webcam resolutions
-- All filters preserve the original image data type and format
-- The modular design allows easy testing of individual components
-- Error handling is implemented throughout the application
+### Output Files
+- **Panoramas**: `panorama/panorama_YYYYMMDD_HHMMSS.jpg` (full resolution)
+- **Thumbnails**: `panorama/thumb_panorama_YYYYMMDD_HHMMSS.jpg` (quick preview)
+- **Saved Frames**: `processed_frame_[timestamp].jpg` (press `s` to save)

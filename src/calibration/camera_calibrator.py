@@ -3,9 +3,7 @@ Camera Calibration Module
 """
 import cv2
 import numpy as np
-import pickle
-import os
-from datetime import datetime
+import time
 
 
 class CameraCalibrator:
@@ -30,10 +28,89 @@ class CameraCalibrator:
         self.translation_vectors = None
         self.calibration_error = None
         
+        # Auto-capture settings
+        self.last_capture_time = 0
+        self.capture_interval = 2.0  # seconds between auto-captures
+        self.target_images = 15  # Number of images needed for calibration
+        
         # Prepare object points (0,0,0), (1,0,0), (2,0,0), ..., (8,5,0)
         self.objp = np.zeros((chessboard_size[0] * chessboard_size[1], 3), np.float32)
         self.objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1, 2)
         
+    def process_calibration_frame(self, frame):
+        """
+        Process frame in calibration mode with auto-capture and visual feedback.
+        
+        Args:
+            frame (numpy.ndarray): Input frame
+            
+        Returns:
+            tuple: (processed_frame, calibration_status)
+        """
+        try:
+            display_frame = self.draw_chessboard_corners(frame)
+            
+            # Get calibration status
+            calib_info = self.get_calibration_info()
+            
+            # Auto-calibrate when enough images are collected
+            if calib_info['ready_to_calibrate'] and not calib_info['is_calibrated']:
+                print("Auto-calibrating camera...")
+                height, width = frame.shape[:2]
+                success = self.calibrate_camera((width, height))
+                if success:
+                    print("✅ Camera calibration completed successfully!")
+                else:
+                    print("❌ Camera calibration failed. Try capturing more images.")
+            
+            return display_frame, calib_info
+            
+        except Exception as e:
+            print(f"Error in calibration mode: {e}")
+            error_frame = frame.copy()
+            cv2.putText(error_frame, f"Calibration Error: {str(e)}", (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            return error_frame, self.get_calibration_info()
+    
+    def auto_capture_calibration_image(self, image):
+        """
+        Auto-capture calibration image if chessboard is detected and enough time has passed.
+        
+        Args:
+            image (numpy.ndarray): Input image
+            
+        Returns:
+            bool: True if image was captured
+        """
+        current_time = time.time()
+        
+        # Check if enough time has passed since last capture
+        if current_time - self.last_capture_time < self.capture_interval:
+            return False
+        
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+        
+        # Find chessboard corners
+        ret, corners = cv2.findChessboardCorners(gray, self.chessboard_size, None)
+        
+        if ret:
+            # Refine corner positions
+            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+            corners_refined = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
+            
+            # Store object points and image points
+            self.object_points.append(self.objp)
+            self.image_points.append(corners_refined)
+            self.calibration_images.append(image.copy())
+            
+            # Update capture time
+            self.last_capture_time = current_time
+            
+            print(f"✅ Auto-captured calibration image {len(self.calibration_images)}/{self.target_images}")
+            return True
+        
+        return False
+    
     def add_calibration_image(self, image):
         """
         Add an image for calibration if it contains a chessboard pattern.
@@ -67,13 +144,13 @@ class CameraCalibrator:
     
     def draw_chessboard_corners(self, image):
         """
-        Draw chessboard corners on image if detected.
+        Draw chessboard corners on image if detected and show auto-capture status.
         
         Args:
             image (numpy.ndarray): Input image
             
         Returns:
-            numpy.ndarray: Image with drawn corners
+            numpy.ndarray: Image with drawn corners and status
         """
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
         result = image.copy()
@@ -81,22 +158,42 @@ class CameraCalibrator:
         # Find chessboard corners
         ret, corners = cv2.findChessboardCorners(gray, self.chessboard_size, None)
         
+        current_time = time.time()
+        time_since_last = current_time - self.last_capture_time
+        can_capture = time_since_last >= self.capture_interval
+        
         if ret:
             # Draw corners
             cv2.drawChessboardCorners(result, self.chessboard_size, corners, ret)
             
-            # Add text indicating detection
-            cv2.putText(result, f'Chessboard Detected ({self.chessboard_size[0]}x{self.chessboard_size[1]})', 
-                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            # Auto-capture if enough time has passed
+            if can_capture and len(self.calibration_images) < self.target_images:
+                self.auto_capture_calibration_image(image)
+                status_color = (0, 255, 0)  # Green
+                status_text = f'CAPTURED! ({len(self.calibration_images)}/{self.target_images})'
+            else:
+                if len(self.calibration_images) >= self.target_images:
+                    status_color = (0, 255, 255)  # Yellow
+                    status_text = f'Complete! ({len(self.calibration_images)}/{self.target_images})'
+                else:
+                    # Show countdown
+                    remaining_time = self.capture_interval - time_since_last
+                    status_color = (0, 165, 255)  # Orange
+                    status_text = f'Next capture in {remaining_time:.1f}s ({len(self.calibration_images)}/{self.target_images})'
         else:
-            cv2.putText(result, 'No Chessboard Pattern', 
-                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            status_color = (0, 0, 255)  # Red
+            status_text = f'No Chessboard - Move closer or improve lighting ({len(self.calibration_images)}/{self.target_images})'
         
-        # Add instruction text
-        cv2.putText(result, f'Calibration Images: {len(self.calibration_images)}', 
-                   (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        cv2.putText(result, 'Press SPACE to capture, C to calibrate', 
-                   (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        # Add status text with background
+        cv2.rectangle(result, (5, 5), (result.shape[1]-5, 100), (0, 0, 0), -1)
+        cv2.putText(result, 'AUTO-CAPTURE MODE', (10, 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(result, status_text, (10, 60), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+        
+        # Add manual capture option
+        cv2.putText(result, 'Press SPACE for manual capture', (10, 85), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
         
         return result
     
@@ -153,83 +250,19 @@ class CameraCalibrator:
             print(f"Error during calibration: {e}")
             return False
     
-    def undistort_image(self, image):
-        """
-        Undistort image using calibration parameters.
-        
-        Args:
-            image (numpy.ndarray): Distorted image
-            
-        Returns:
-            numpy.ndarray: Undistorted image
-        """
-        if self.camera_matrix is None or self.distortion_coefficients is None:
-            print("Camera not calibrated yet")
-            return image
-        
-        return cv2.undistort(image, self.camera_matrix, self.distortion_coefficients)
-    
-    def save_calibration(self, filename=None):
-        """
-        Save calibration parameters to file.
-        
-        Args:
-            filename (str): Output filename
-        """
-        if self.camera_matrix is None:
-            print("No calibration data to save")
-            return
-        
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"camera_calibration_{timestamp}.pkl"
-        
-        calibration_data = {
-            'camera_matrix': self.camera_matrix,
-            'distortion_coefficients': self.distortion_coefficients,
-            'rotation_vectors': self.rotation_vectors,
-            'translation_vectors': self.translation_vectors,
+    def get_calibration_info(self):
+        """Get current calibration status."""
+        return {
+            'num_calibration_images': len(self.calibration_images),
+            'target_images': self.target_images,
+            'is_calibrated': self.camera_matrix is not None,
             'calibration_error': self.calibration_error,
             'chessboard_size': self.chessboard_size,
-            'num_images': len(self.calibration_images)
+            'ready_to_calibrate': len(self.calibration_images) >= self.target_images
         }
-        
-        with open(filename, 'wb') as f:
-            pickle.dump(calibration_data, f)
-        
-        print(f"Calibration data saved to {filename}")
-    
-    def load_calibration(self, filename):
-        """
-        Load calibration parameters from file.
-        
-        Args:
-            filename (str): Input filename
-            
-        Returns:
-            bool: True if loading successful
-        """
-        try:
-            with open(filename, 'rb') as f:
-                calibration_data = pickle.load(f)
-            
-            self.camera_matrix = calibration_data['camera_matrix']
-            self.distortion_coefficients = calibration_data['distortion_coefficients']
-            self.rotation_vectors = calibration_data.get('rotation_vectors')
-            self.translation_vectors = calibration_data.get('translation_vectors')
-            self.calibration_error = calibration_data.get('calibration_error')
-            self.chessboard_size = calibration_data.get('chessboard_size', self.chessboard_size)
-            
-            print(f"Calibration data loaded from {filename}")
-            print(f"Reprojection error: {self.calibration_error:.3f} pixels")
-            return True
-            
-        except Exception as e:
-            print(f"Error loading calibration: {e}")
-            return False
     
     def clear_calibration_data(self):
-        """Clear all calibration data."""
+        """Clear all calibration data and reset state."""
         self.calibration_images.clear()
         self.object_points.clear()
         self.image_points.clear()
@@ -238,39 +271,5 @@ class CameraCalibrator:
         self.rotation_vectors = None
         self.translation_vectors = None
         self.calibration_error = None
+        self.last_capture_time = 0
         print("Calibration data cleared")
-    
-    def get_calibration_info(self):
-        """Get current calibration status."""
-        return {
-            'num_calibration_images': len(self.calibration_images),
-            'is_calibrated': self.camera_matrix is not None,
-            'calibration_error': self.calibration_error,
-            'chessboard_size': self.chessboard_size,
-            'ready_to_calibrate': len(self.calibration_images) >= 10
-        }
-    
-    def create_chessboard_pattern(self, square_size=30, save_path='chessboard_pattern.png'):
-        """
-        Create a chessboard pattern for printing.
-        
-        Args:
-            square_size (int): Size of each square in pixels
-            save_path (str): Path to save the pattern
-        """
-        pattern_width = (self.chessboard_size[0] + 1) * square_size
-        pattern_height = (self.chessboard_size[1] + 1) * square_size
-        
-        pattern = np.zeros((pattern_height, pattern_width), dtype=np.uint8)
-        
-        for i in range(self.chessboard_size[1] + 1):
-            for j in range(self.chessboard_size[0] + 1):
-                if (i + j) % 2 == 0:
-                    y1, y2 = i * square_size, (i + 1) * square_size
-                    x1, x2 = j * square_size, (j + 1) * square_size
-                    pattern[y1:y2, x1:x2] = 255
-        
-        cv2.imwrite(save_path, pattern)
-        print(f"Chessboard pattern saved to {save_path}")
-        print(f"Pattern size: {self.chessboard_size[0]+1} x {self.chessboard_size[1]+1} squares")
-        print(f"Print this pattern and use it for calibration")

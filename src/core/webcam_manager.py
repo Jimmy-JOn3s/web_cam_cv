@@ -30,15 +30,20 @@ class WebcamManager:
         
         if not self.is_opened:
             raise IOError("Cannot open webcam")
-            
-        # Get original resolution
-        original_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        original_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        print(f"Original webcam resolution: {original_width}x{original_height}")
+        
+        # Set webcam resolution to standard 480p
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.default_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.default_height)
+        
+        # Get actual resolution (webcam might not support exact resolution)
+        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print(f"Requested resolution: {self.default_width}x{self.default_height}")
+        print(f"Actual webcam resolution: {actual_width}x{actual_height}")
         
         return self.is_opened
     
-    def read_frame(self, resize=True):
+    def read_frame(self, resize=False):
         """
         Read a frame from the webcam.
         
@@ -58,14 +63,7 @@ class WebcamManager:
             
         return ret, frame
     
-    def get_frame_dimensions(self):
-        """Get current frame dimensions."""
-        if not self.cap:
-            return None, None
-            
-        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        return width, height
+
     
     def release(self):
         """Release the webcam resource."""

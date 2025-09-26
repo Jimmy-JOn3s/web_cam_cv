@@ -76,45 +76,7 @@ class DisplayManager:
         
         cv2.putText(image, text, position, font, font_scale, color, thickness)
     
-    def create_side_by_side_display(self, image1, image2, title1="Original", title2="Processed"):
-        """
-        Create side-by-side display of two images.
-        
-        Args:
-            image1 (numpy.ndarray): First image
-            image2 (numpy.ndarray): Second image
-            title1 (str): Title for first image
-            title2 (str): Title for second image
-            
-        Returns:
-            numpy.ndarray: Combined image
-        """
-        # Ensure images have the same height
-        h1, w1 = image1.shape[:2]
-        h2, w2 = image2.shape[:2]
-        
-        max_height = max(h1, h2)
-        
-        # Resize images if needed
-        if h1 != max_height:
-            image1 = cv2.resize(image1, (int(w1 * max_height / h1), max_height))
-        if h2 != max_height:
-            image2 = cv2.resize(image2, (int(w2 * max_height / h2), max_height))
-        
-        # Handle different channel counts
-        if len(image1.shape) == 2:
-            image1 = cv2.cvtColor(image1, cv2.COLOR_GRAY2BGR)
-        if len(image2.shape) == 2:
-            image2 = cv2.cvtColor(image2, cv2.COLOR_GRAY2BGR)
-        
-        # Add titles
-        self.add_text_overlay(image1, title1)
-        self.add_text_overlay(image2, title2)
-        
-        # Concatenate horizontally
-        combined = np.hstack((image1, image2))
-        
-        return combined
+    
     
     def create_grid_display(self, images, titles=None, grid_size=None):
         """
@@ -177,7 +139,7 @@ class DisplayManager:
     
     def add_control_instructions(self, image, instructions):
         """
-        Add control instructions to the bottom of an image.
+        Add control instructions to the top of an image with compact layout.
         
         Args:
             image (numpy.ndarray): Image to add instructions to
@@ -187,12 +149,18 @@ class DisplayManager:
             return
         
         height, width = image.shape[:2]
-        text_height = 25
-        start_y = height - (len(instructions) * text_height) - 10
+        text_height = 20  # Reduced from 25 for more compact layout
+        start_y = 25  # Start from top instead of bottom
+        
+        # Add semi-transparent background for better readability
+        overlay = image.copy()
+        overlay_height = (len(instructions) * text_height) + 20
+        cv2.rectangle(overlay, (0, 0), (width, overlay_height), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.6, image, 0.4, 0, image)
         
         for i, instruction in enumerate(instructions):
             y_pos = start_y + (i * text_height)
-            self.add_text_overlay(image, instruction, (10, y_pos), font_scale=0.5)
+            self.add_text_overlay(image, instruction, (10, y_pos), font_scale=0.45, thickness=1)
     
     def wait_for_key(self, delay=1):
         """

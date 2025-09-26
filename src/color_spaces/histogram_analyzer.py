@@ -16,29 +16,33 @@ class HistogramAnalyzer:
         
     def calculate_histogram(self, image, channels=None, mask=None):
         """
-        Calculate histogram for given image.
+        Calculate histogram for image.
         
         Args:
             image (numpy.ndarray): Input image
-            channels (list): List of channel indices to calculate histogram for
-            mask (numpy.ndarray): Mask for histogram calculation
+            channels (list): Channels to calculate histogram for
+            mask (numpy.ndarray): Optional mask
             
         Returns:
             list: List of histograms for each channel
         """
-        if len(image.shape) == 2:  # Grayscale
-            hist = cv2.calcHist([image], [0], mask, [self.hist_size], self.hist_range)
-            return [hist]
-        else:  # Color image
+        if len(image.shape) == 3:
+            # Color image
             if channels is None:
                 channels = [0, 1, 2]  # All channels
             
             histograms = []
             for channel in channels:
-                hist = cv2.calcHist([image], [channel], mask, [self.hist_size], self.hist_range)
+                hist = cv2.calcHist([image], [channel], mask, [256], [0, 256])
                 histograms.append(hist)
             
             return histograms
+        else:
+            # Grayscale image
+            hist = cv2.calcHist([image], [0], mask, [256], [0, 256])
+            return [hist]
+        
+    
     
     def create_histogram_image(self, image, width=512, height=400):
         """
@@ -85,37 +89,7 @@ class HistogramAnalyzer:
         
         return hist_image
     
-    def display_histogram_matplotlib(self, image, title="Histogram"):
-        """
-        Display histogram using matplotlib.
-        
-        Args:
-            image (numpy.ndarray): Input image
-            title (str): Title for the plot
-        """
-        plt.figure(figsize=(10, 6))
-        
-        if len(image.shape) == 2:  # Grayscale
-            hist = self.calculate_histogram(image)[0]
-            plt.plot(hist, color='black')
-            plt.title(f'{title} - Grayscale')
-            plt.xlabel('Pixel Intensity')
-            plt.ylabel('Frequency')
-        else:  # Color image
-            histograms = self.calculate_histogram(image)
-            colors = ['blue', 'green', 'red']
-            labels = ['Blue', 'Green', 'Red']
-            
-            for hist, color, label in zip(histograms, colors, labels):
-                plt.plot(hist, color=color, label=label)
-            
-            plt.title(f'{title} - Color Channels')
-            plt.xlabel('Pixel Intensity')
-            plt.ylabel('Frequency')
-            plt.legend()
-        
-        plt.grid(True, alpha=0.3)
-        plt.show()
+    
     
     def get_histogram_stats(self, image):
         """
